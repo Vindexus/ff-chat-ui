@@ -36,7 +36,7 @@ export default Vue.extend({
       }
 
       const users = this.usersAjax.data.Users || []
-      return users.filter((user) => {
+      return users.filter((user : User) => {
         return user.Id != this.$store.state.session.currentUserId
       })
     }

@@ -9,12 +9,13 @@
       </div>
       <h2>Chat With {{otherUser.Username}}</h2>
       <div class="chat-log">
-        <li v-for="(msg, idx) in messages" :key="idx" class="message">
-          {{msg.Message}}
+        <li v-for="(msg, idx) in messages" :key="idx" class="message" :class="{received: msg.SenderId === otherUserId}">
+          <span class="username">{{msg.Username}}:</span>
+          <span class="msg">{{msg.Message}}</span>
         </li>
       </div>
       <form @submit="send">
-        <input type="text" v-model="newMessage" />
+        <input type="text" v-model="newMessage" placeholder="New message" />
       </form>
     </div>
   </div>
@@ -24,11 +25,13 @@ import Vue from "vue"
 import {newAjax} from "@/lib/helpers";
 import {getChat} from "@/modules/chats/chat-api";
 import {User} from "@/modules/users/user-types";
+import {io} from "socket.io-client"
+import {getCookie} from "@/lib/cookies";
 
 export default Vue.extend({
   data () {
     return {
-      otherUserId: this.$router.currentRoute.params.otherUserId,
+      otherUserId: parseInt(this.$router.currentRoute.params.otherUserId),
       newMessage: '',
       chatAjax: newAjax(),
     }
@@ -49,6 +52,24 @@ export default Vue.extend({
   },
   async created () {
     await this.loadChat()
+
+    this.socket = io(`${process.env.VUE_APP_API_URL}`, {
+      query: {
+        jwt: getCookie('jwt')
+      }
+    })
+    this.socket.on('connect', () => {
+      console.log('connected')
+    })
+
+    // TODO: Check for errors on parsing the data
+    this.socket.on('reply', (js) => {
+      const msg = JSON.parse(js)
+      this.chatAjax.data.Messages.push(msg)
+    })
+  },
+  destroyed() {
+    this.socket.close()
   },
   methods: {
     async send (e) {
@@ -56,7 +77,7 @@ export default Vue.extend({
       if (!this.newMessage) {
         return
       }
-      // TODO: Send a message through ws
+      this.socket.emit('msg', this.newMessage)
       this.newMessage = ''
     },
     async loadChat () {
@@ -67,8 +88,27 @@ export default Vue.extend({
         this.chatAjax.error = ex.toString()
       }
       this.chatAjax.loading = false
-      console.log('', this.chatAjax)
     }
   }
 })
 </script>
+<style scoped>
+.message {
+  list-style: none;
+  margin: 0 0 5px 0;
+  color: #2c3e50;
+}
+.message.received {
+  text-align: left;
+  color: rebeccapurple;
+}
+
+.username {
+  font-weight: bold;
+  margin-right: 0.25em;
+}
+
+form {
+  margin-top: 1em;
+}
+</style>
